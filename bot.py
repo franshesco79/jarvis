@@ -36,7 +36,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         user_text = update.message.text
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-3.6-flash",
             contents=user_text,
         )
         await update.message.reply_text(response.text)
@@ -66,7 +66,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
             # 3. Enviar a Gemini
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-3.6-flash",
                 contents=[
                     types.Part.from_bytes(
                         data=audio_bytes,

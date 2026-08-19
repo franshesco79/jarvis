@@ -34,7 +34,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         user_text = update.message.text
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-3.6-flash",
             contents=user_text,
         )
         await update.message.reply_text(response.text)
@@ -59,7 +59,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
             # Generar respuesta de texto a partir del audio
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-3.6-flash",
                 contents=[uploaded_file, "Escucha esta nota de voz y responde a lo que solicita de forma clara."],
             )
             response_text = response.text if response.text else "No pude interpretar el audio."

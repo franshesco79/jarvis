@@ -48,23 +48,26 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         ogg_path = os.path.join(tmp_dir, "voice.ogg")
         mp3_path = os.path.join(tmp_dir, "response.mp3")
 
-        # Descargar la nota de voz
+        # Descargar la nota de voz a un archivo temporal local .ogg
         await voice_file.download_to_drive(ogg_path)
 
-        # Subir audio a Gemini y obtener respuesta
+        # Subir archivo a Gemini usando client.files.upload(file=path)
         uploaded_file = client.files.upload(file=ogg_path)
+
+        # Pasar el archivo a client.models.generate_content() con el modelo gemini-3.6-flash
         response = client.models.generate_content(
             model="gemini-3.6-flash",
             contents=[uploaded_file, "Responde a esta nota de voz."],
         )
 
-        # Convertir la respuesta de texto a voz con edge_tts
+        # Convertir la respuesta de texto a voz con edge_tts.Communicate y guardarlo
         tts = edge_tts.Communicate(response.text, "es-ES-AlvaroNeural")
         await tts.save(mp3_path)
 
         # Responder al usuario con la nota de voz
         with open(mp3_path, "rb") as voice_out:
             await update.message.reply_voice(voice=voice_out)
+        # Los archivos temporales se eliminan automáticamente al salir del bloque 'with'
 
 
 def main() -> None:

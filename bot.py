@@ -2,8 +2,6 @@ import os
 import logging
 import tempfile
 from google import genai
-from google.genai import types
-import edge_tts
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -36,7 +34,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         user_text = update.message.text
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
+            model="gemini-1.5-flash",
             contents=user_text,
         )
         await update.message.reply_text(response.text)
@@ -46,48 +44,32 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Maneja las notas de voz entrantes."""
+    """Maneja las notas de voz entrantes y responde con texto."""
     try:
-        # Avisar al usuario que está procesando para evitar que se corte la conexión
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="record_voice")
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
         voice_file = await context.bot.get_file(update.message.voice.file_id)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             ogg_path = os.path.join(tmp_dir, "voice.ogg")
-            mp3_path = os.path.join(tmp_dir, "response.mp3")
-
-            # 1. Descargar la nota de voz
             await voice_file.download_to_drive(ogg_path)
 
-            # 2. Leer el archivo en bytes
-            with open(ogg_path, "rb") as f:
-                audio_bytes = f.read()
+            # Subir audio a Gemini
+            uploaded_file = client.files.upload(file=ogg_path)
 
-            # 3. Enviar a Gemini
+            # Generar respuesta de texto a partir del audio
             response = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=[
-                    types.Part.from_bytes(
-                        data=audio_bytes,
-                        mime_type="audio/ogg",
-                    ),
-                    "Escucha esta nota de voz y responde brevemente a lo que solicita.",
-                ],
+                model="gemini-1.5-flash",
+                contents=[uploaded_file, "Escucha esta nota de voz y responde a lo que solicita de forma clara."],
             )
             response_text = response.text if response.text else "No pude interpretar el audio."
 
-            # 4. Convertir respuesta a audio con edge-tts
-            communicate = edge_tts.Communicate(response_text, "es-ES-AlvaroNeural")
-            await communicate.save(mp3_path)
-
-            # 5. Responder con la nota de voz
-            with open(mp3_path, "rb") as voice_out:
-                await update.message.reply_voice(voice=voice_out)
+            # Enviar la respuesta en texto
+            await update.message.reply_text(response_text)
 
     except Exception as e:
-        logger.error(f"Error procesando audio: {e}")
-        await update.message.reply_text("Lo siento, ocurrió un problema al procesar tu nota de voz.")
+        logger.error("Error detallado procesando audio:", exc_info=True)
+        await update.message.reply_text(f"Error procesando nota de voz: {str(e)}")
 
 
 def main() -> None:
@@ -96,15 +78,7 @@ def main() -> None:
     if not telegram_token:
         raise ValueError("La variable de entorno TELEGRAM_BOT_TOKEN no está configurada.")
 
-    # Configuración de la aplicación con timeouts extendidos para evitar cortes de red
-    app = (
-        Application.builder()
-        .token(telegram_token)
-        .connect_timeout(30.0)
-        .read_timeout(30.0)
-        .write_timeout(30.0)
-        .build()
-    )
+    app = Application.builder().token(telegram_token).build()
 
     # Registros de manejadores
     app.add_handler(CommandHandler("start", start_command))
